@@ -1,6 +1,9 @@
-use std::fs;
 use std::io::Write;
+use std::{fs, io::BufWriter};
 use tokio::sync::mpsc::{self, Sender};
+use twitch_irc::message::PrivmsgMessage;
+
+use crate::{CHANNELS, LOGS};
 
 pub struct FileManager {
   sender: Sender<FileManagerMessage>,
@@ -8,8 +11,8 @@ pub struct FileManager {
 
 #[derive(Debug)]
 pub enum FileManagerMessage {
-  Append { path: String, text: String },
-  // Create // TODO
+  Append { message: Box<PrivmsgMessage> },
+  AddChannel { sender: String },
 }
 
 impl FileManager {
@@ -18,18 +21,24 @@ impl FileManager {
 
     tokio::spawn(async move {
       let mut rx = rx;
+      let mut logs = BufWriter::new(fs::File::options().append(true).open(LOGS).unwrap());
+      let mut channels = fs::File::options().append(true).open(CHANNELS).unwrap();
 
       while let Some(message) = rx.recv().await {
         use FileManagerMessage::*;
 
         match message {
-          Append { path, text } => {
-            let mut file = fs::File::options().append(true).open(path).unwrap();
-
-            file.write_all(text.as_bytes()).unwrap();
+          Append { message } => {
+            let text = serde_json::to_string(&message).unwrap();
+            logs.write_all((text + "\n").as_bytes()).unwrap();
+          }
+          AddChannel { sender: channel } => {
+            channels.write_all((channel + "\n").as_bytes()).unwrap();
           }
         };
       }
+
+      logs.flush().unwrap();
     });
 
     FileManager { sender: tx }
