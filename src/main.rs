@@ -51,7 +51,7 @@ pub async fn main() {
           println!("!!! Got my own message");
         }
 
-        if !channels.contains(&msg.sender.login) && channels.len() < 1000000 {
+        if msg.badges.iter().any(|b| b.name == "partner") && !channels.contains(&msg.sender.login) {
           match client.join(msg.sender.login.clone()) {
             Ok(_) => {
               channels.insert(msg.sender.login.clone());
@@ -63,7 +63,12 @@ pub async fn main() {
                 .await
                 .unwrap();
 
-              println!("+ {} <- {}", msg.sender.login, msg.channel_login);
+              println!(
+                "+ {} <- {}, {}",
+                msg.sender.login,
+                msg.channel_login,
+                channels.len()
+              );
             }
             Err(_) => {
               println!("! {}", msg.sender.login);
