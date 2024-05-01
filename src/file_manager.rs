@@ -21,8 +21,18 @@ impl FileManager {
 
     tokio::spawn(async move {
       let mut rx = rx;
-      let mut logs = BufWriter::new(fs::File::options().append(true).open(LOGS).unwrap());
-      let mut channels = fs::File::options().append(true).open(CHANNELS).unwrap();
+      let mut logs = BufWriter::new(
+        fs::File::options()
+          .create(true)
+          .append(true)
+          .open(LOGS)
+          .unwrap(),
+      );
+      let mut channels = fs::File::options()
+        .create(true)
+        .append(true)
+        .open(CHANNELS)
+        .unwrap();
 
       while let Some(message) = rx.recv().await {
         use FileManagerMessage::*;

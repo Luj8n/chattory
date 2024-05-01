@@ -1,12 +1,9 @@
-use rayon::prelude::IntoParallelRefIterator;
 use rayon::prelude::ParallelIterator;
-use rayon::prelude::*;
 use rayon::str::ParallelString;
 use std::collections::HashSet;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use twitch_irc::login::StaticLoginCredentials;
-use twitch_irc::message::PrivmsgMessage;
 use twitch_irc::{message, TwitchIRCClient};
 use twitch_irc::{ClientConfig, SecureTCPTransport};
 
@@ -20,6 +17,9 @@ pub async fn main() {
   let mut channels: HashSet<String> = {
     let mut buf = String::new();
     fs::File::options()
+      .create(true)
+      .write(true)
+      .truncate(false)
       .read(true)
       .open(CHANNELS)
       .unwrap()
@@ -34,7 +34,9 @@ pub async fn main() {
     TwitchIRCClient::<SecureTCPTransport, StaticLoginCredentials>::new(config);
 
   for channel in &channels {
-    client.join(channel.clone()).expect(&format!("! {channel}"));
+    client
+      .join(channel.clone())
+      .unwrap_or_else(|_| panic!("! {channel}"));
 
     println!("+ {}", channel);
   }
@@ -84,48 +86,3 @@ pub async fn main() {
   // TODO: add a grace shutdown method - flush buffers
   join_handle.await.unwrap();
 }
-
-pub fn old_to_new() {
-  let channels: Vec<String> = fs::read_dir("../logs")
-    .unwrap()
-    .map(|p| p.unwrap().file_name().to_str().unwrap().to_owned())
-    .collect();
-
-  let mut files: Vec<String> = vec![];
-
-  for channel in &channels {
-    let mut file = fs::File::options()
-      .read(true)
-      .open(format!("../logs/{channel}"))
-      .unwrap();
-    let mut buf = String::new();
-
-    file.read_to_string(&mut buf).unwrap();
-
-    files.push(buf);
-  }
-
-  let mut rows: Vec<&str> = files
-    .par_iter()
-    .flat_map(|f| f.par_lines().collect::<Vec<&str>>())
-    .collect();
-
-  rows.par_sort_by_cached_key(|x| {
-    serde_json::from_str::<PrivmsgMessage>(x)
-      .unwrap()
-      .server_timestamp
-  });
-
-  let mut new_file = fs::File::create("data/logs").unwrap();
-  let mut channel_file = fs::File::create("data/channels").unwrap();
-
-  let text = rows.join("\n") + "\n";
-  let channels = channels.join("\n") + "\n";
-
-  new_file.write_all(text.as_bytes()).unwrap();
-  channel_file.write_all(channels.as_bytes()).unwrap();
-}
-
-// fn main() {
-//   old_to_new();
-// }
